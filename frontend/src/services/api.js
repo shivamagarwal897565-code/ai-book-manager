@@ -1,18 +1,20 @@
 import axios from "axios";
 
-const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://ai-book-manager.onrender.com/api',
-  withCredentials: true
+const api = axios.create({
+  baseURL:
+    import.meta.env.VITE_API_URL ||
+    "https://ai-book-manager.onrender.com/api",
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token");
 
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
-    return config;
+  return config;
 });
 
 export default api;
