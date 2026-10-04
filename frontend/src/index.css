@@ -274,14 +274,13 @@ button {
 
 .chat-message {
     max-width: 85%;
-
     padding: 10px 13px;
-
     border-radius: 10px;
-
     line-height: 1.5;
-
     font-size: 14px;
+
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
 }
 
 .chat-message.user {

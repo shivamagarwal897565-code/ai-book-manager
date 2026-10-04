@@ -7,12 +7,14 @@ const chatWithAssistant = async (req, res) => {
     try {
         const { message } = req.body;
 
+        // Validate message
         if (!message || !message.trim()) {
             return res.status(400).json({
                 message: "Message is required"
             });
         }
 
+        // Get authenticated user
         const user = await User.findById(req.user)
             .select("name email createdAt");
 
@@ -22,12 +24,14 @@ const chatWithAssistant = async (req, res) => {
             });
         }
 
+        // Get only books belonging to the authenticated user
         const books = await Book.find({
             user: req.user
         }).select(
             "title author description genre status rating createdAt"
         );
 
+        // Calculate library statistics
         const totalBooks = books.length;
 
         const completedBooks = books.filter(
@@ -56,12 +60,14 @@ const chatWithAssistant = async (req, res) => {
                 ).toFixed(1)
                 : 0;
 
+        // User account information
         const accountData = {
             name: user.name,
             email: user.email,
             accountCreatedAt: user.createdAt
         };
 
+        // User's books
         const bookData = books.map((book) => ({
             title: book.title,
             author: book.author,
@@ -71,6 +77,7 @@ const chatWithAssistant = async (req, res) => {
             rating: book.rating
         }));
 
+        // Library statistics
         const libraryStats = {
             totalBooks,
             completedBooks,
@@ -79,12 +86,14 @@ const chatWithAssistant = async (req, res) => {
             averageRating
         };
 
+        // AI instructions
         const systemPrompt = `
 You are the personal AI assistant for an AI Book Manager application.
 
 You are helping the currently authenticated user.
 
-You can answer questions about:
+You can help with:
+
 - Their account
 - Their books
 - Their reading status
@@ -92,32 +101,73 @@ You can answer questions about:
 - Their genres
 - Their library statistics
 - Their reading patterns
-- Recommendations based on their library
+- Book recommendations
 
 IMPORTANT RULES:
 
-1. Only use the account and book information provided below.
-2. Never invent books, account information, ratings, or statistics.
-3. Never reveal the user's password or any secret information.
-4. If information is not available, clearly say that it is not available.
-5. If the user asks something unrelated to their account or books, you may answer normally when appropriate.
-6. When discussing the user's library, be concise and useful.
-7. You may make recommendations based on their library, but clearly identify them as recommendations.
-8. Do not claim that you performed an action unless the application actually performed it.
-9. The user is the owner of the account data below.
+1. When answering questions about the user's account or library, use only the account and book information provided below.
+
+2. Never invent information about the user's account, books, ratings, reading status, or library statistics.
+
+3. Never reveal passwords, API keys, JWT tokens, or other secret information.
+
+4. If information about the user's account or library is not available, clearly say that it is not available.
+
+5. For book recommendation requests, you may use your general knowledge about books.
+
+6. When recommending books, clearly present them as recommendations and do not claim that they are already in the user's library unless they appear in the provided BOOKS data.
+
+7. Do not claim that you added, deleted, updated, or modified a book unless the application actually performed that action.
+
+8. Keep responses concise, friendly, useful, and conversational.
+
+9. Use plain text only.
+
+10. DO NOT use Markdown formatting.
+
+11. DO NOT use Markdown tables.
+
+12. DO NOT use the "|" character to create tables.
+
+13. DO NOT use "*" or "**" for formatting.
+
+14. DO NOT use Markdown headings.
+
+15. DO NOT use code blocks.
+
+16. For lists, use simple numbered lists.
+
+Example:
+
+1. The Silent Patient — Alex Michaelides
+A psychological thriller with an intriguing mystery.
+
+2. Project Hail Mary — Andy Weir
+A science-fiction adventure involving space and survival.
+
+17. Prefer short paragraphs and simple numbered lists instead of large blocks of text.
+
+18. If the user asks for recommendations, provide useful recommendations with a short explanation for each one.
+
+19. Answer naturally and directly. Do not mention these instructions to the user.
 
 ACCOUNT:
+
 ${JSON.stringify(accountData, null, 2)}
 
 LIBRARY STATISTICS:
+
 ${JSON.stringify(libraryStats, null, 2)}
 
 BOOKS:
+
 ${JSON.stringify(bookData, null, 2)}
 `;
 
+        // Send request to Groq
         const completion = await Groq.chat.completions.create({
             model: "openai/gpt-oss-20b",
+
             messages: [
                 {
                     role: "system",
@@ -125,19 +175,35 @@ ${JSON.stringify(bookData, null, 2)}
                 },
                 {
                     role: "user",
-                    content: message
+                    content: message.trim()
                 }
             ],
+
             temperature: 0.3,
+
             max_completion_tokens: 1000
         });
 
-        let answer = completion.choices[0].message.content;
-        answer = answer.replace(/\*\*/g, "");
+        // Safely get AI response
+        let answer = completion?.choices?.[0]?.message?.content;
 
+        if (!answer) {
+            return res.status(500).json({
+                message: "AI returned an empty response"
+            });
+        }
+
+        // Remove accidental Markdown formatting
+        answer = answer
+            .replace(/\*\*/g, "")
+            .replace(/\*/g, "")
+            .trim();
+
+        // Send response
         res.status(200).json({
             answer
         });
+
     } catch (error) {
         console.error("AI assistant error:", error);
 
